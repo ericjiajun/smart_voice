@@ -9,7 +9,7 @@ if __name__ == "__main__":
 import speech_recognition as sr
 import threading
 import time
-
+import base64
 import numpy as np
 import pyttsx3
 import requests
@@ -77,7 +77,8 @@ def get_current_weather(city):
 # 全局变量
 voice_mode = False  # 是否启用语音交互模式
 
-# 语音识别
+'''
+# 语音识别---本地sphinx，和百度云大差不差
 def recognize_speech(timeout=10):
     with sr.Microphone() as source:
         print("请说话...")
@@ -98,24 +99,107 @@ def recognize_speech(timeout=10):
     except sr.RequestError as e:
         print(f"语音识别服务出错：{e}")
         return None
+'''
+# 语音识别---google--比百度云和本地准确太多了
+def recognize_speech(timeout=10):
+    with sr.Microphone() as source:
+        print("请说话...")
+        recognizer.adjust_for_ambient_noise(source)  # 调整环境噪音
+        try:
+            audio = recognizer.listen(source, timeout=timeout)  # 设置超时时间
+        except sr.WaitTimeoutError:
+            print("10 秒内未检测到语音输入，退出语音交互模式。")
+            return None
 
-# 语音合成
-'''
-def speak(text):
-    print(f"DeepSeek: {text}")
-    engine.say(text)
-    engine.runAndWait()
-'''
+    try:
+        text = recognizer.recognize_google(audio, language="zh-CN")  # 使用 Google 语音识别
+        print(f"你说：{text}")
+        return text
+    except sr.UnknownValueError:
+        print("无法识别语音")
+        return None
+    except sr.RequestError as e:
+        print(f"语音识别服务出错：{e}")
+        return None
+
+
+
 # 百度 TTS API 配置
 api_key = "HoMFvZPdu9AzOH4rLupDciNw"
 secret_key = "Qc7pUqGEjjZOFg3fyq5fkUCSmCg9uVpJ"
 token_url = f"https://openapi.baidu.com/oauth/2.0/token?grant_type=client_credentials&client_id={api_key}&client_secret={secret_key}"#记得加f
 tts_url = "http://tsn.baidu.com/text2audio"
+asr_url = "https://vop.baidu.com/server_api"  # 语音识别 API
 
 # 获取访问令牌
 def get_token():
     response = requests.get(token_url)
     return response.json().get("access_token")
+'''
+# 语音识别（使用百度云 API--不太准确）
+def recognize_speech(timeout=10):
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("请说话...")
+        recognizer.adjust_for_ambient_noise(source)  # 调整环境噪音
+        try:
+            audio = recognizer.listen(source, timeout=timeout)  # 设置超时时间
+        except sr.WaitTimeoutError:
+            print("10 秒内未检测到语音输入，退出语音交互模式。")
+            return None
+
+    # 将音频数据保存为临时文件
+    audio_file = "temp.wav"
+    with open(audio_file, "wb") as f:
+        f.write(audio.get_wav_data())
+
+    # 获取访问令牌
+    token = get_token()
+    if not token:
+        print("无法获取访问令牌。")
+        return None
+
+    # 读取音频文件并转换为 base64 编码
+    with open(audio_file, "rb") as f:
+        audio_data = f.read()
+    audio_base64 = base64.b64encode(audio_data).decode("utf-8")
+
+    # 设置请求参数
+    payload = {
+        "format": "wav",  # 音频格式
+        "rate": 16000,  # 采样率
+        "channel": 1,  # 声道数
+        "cuid": "my-app-v1.0",  # 客户端 ID
+        "token": token,  # 访问令牌
+        "speech": audio_base64,  # 音频数据
+        "len": len(audio_data),  # 音频长度
+        "dev_pid": 1537,  # 语言模型（普通话纯中文）
+    }
+
+    # 发送请求
+    headers = {"Content-Type": "application/json"}
+    try:
+        response = requests.post(asr_url, headers=headers, data=json.dumps(payload))
+    except requests.exceptions.RequestException as e:
+        print(f"语音识别请求失败: {e}")
+        return None
+
+    # 解析响应
+    if response.status_code == 200:
+        result = response.json()
+        if "result" in result:
+            recognized_text = result["result"][0]  # 获取识别结果
+            print(f"识别结果: {recognized_text}")  # 以中文输出识别结果
+            return recognized_text
+        else:
+            print("语音识别失败:", result.get("err_msg", "未知错误"))
+            return None
+    else:
+        print(f"语音识别请求失败，状态码: {response.status_code}")
+        print("响应内容:", response.text)
+        return None
+'''
+
 
 # 合成语音
 def speak(text, language='zh'):
@@ -152,14 +236,7 @@ def speak(text, language='zh'):
     else:
         print(f"请求失败，状态码: {response.status_code}")
         print("响应内容:", response.text)  # 打印错误信息
-        '''
-    if response.headers["Content-Type"] == "audio/mp3":
-        with open("output.mp3", "wb") as f:
-            f.write(response.content)
-        os.system("mpg321 output.mp3")  # 播放语音
-    else:
-        print("语音合成失败。")
-'''
+
 # 设置请求体
 def create_chat_prompt(user_input):
     return {
@@ -234,13 +311,7 @@ def voice_interaction():
         # 处理用户输入
         response = chat_with_deepseek(user_input)
         speak(response)
-'''
-# 启动语音交互模式
-def start_voice_interaction():
-    global voice_mode
-    voice_mode = True
-    threading.Thread(target=voice_interaction, daemon=True).start()
-'''
+
 # 主程序
 if __name__ == "__main__":
     while True:

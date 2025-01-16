@@ -9,3 +9,8 @@ sudo apt install espeak-ng libasound-dev portaudio19-dev libportaudio2 libportau
 ```bash
 pip3 install -r requirements.txt
 ```
+
+sudo apt install alsa-utils
+
+sudo apt install espeak-ng-data-zh
+sudo apt install espeak-data
