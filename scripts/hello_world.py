@@ -1,11 +1,7 @@
 #!/bin/env python3
-'''
-def main():
-    print("Hello, World!")
 
-if __name__ == "__main__":
-    main()
-'''
+
+
 import speech_recognition as sr
 import threading
 import time
@@ -16,12 +12,14 @@ import requests
 import os
 import json
 import re
-#import pyaudio
+import pyaudio
 import uuid
 from gtts import gTTS
+from pocketsphinx import LiveSpeech, get_model_path
+
+
 # 生成一个唯一的设备 ID
 #cuidid= str(uuid.uuid4())
-
 
 
 
@@ -121,8 +119,35 @@ def recognize_speech(timeout=10):
     except sr.RequestError as e:
         print(f"语音识别服务出错：{e}")
         return None
+# 语音唤醒---google
+def keyword_wakeup():
+    with sr.Microphone() as source:
+        print("等待关键词唤醒...")
+        recognizer.adjust_for_ambient_noise(source)  # 调整环境噪音
+        try:
+            audio = recognizer.listen(source, timeout=5)  # 录制 5 秒音频,根据实际情况可以长一些
+        except sr.WaitTimeoutError:
+            print("未检测到语音输入。")
+            return False
 
+    try:
+        # 使用 Google Speech-to-Text API 识别语音
+        text = recognizer.recognize_google(audio, language="zh-CN")
+        print(f"识别结果: {text}")
 
+        # 检测关键词
+        if "小助手" in text:
+            print("检测到关键词: 小助手")
+            return True
+        else:
+            print("未检测到关键词。")
+            return False
+    except sr.UnknownValueError:
+        print("无法识别语音")
+        return False
+    except sr.RequestError as e:
+        print(f"语音识别服务出错: {e}")
+        return False
 
 # 百度 TTS API 配置
 api_key = "HoMFvZPdu9AzOH4rLupDciNw"
@@ -135,9 +160,10 @@ asr_url = "https://vop.baidu.com/server_api"  # 语音识别 API
 def get_token():
     response = requests.get(token_url)
     return response.json().get("access_token")
-'''
+
+
 # 语音识别（使用百度云 API--不太准确）
-def recognize_speech(timeout=10):
+def recognize_speech2(timeout=10):
     recognizer = sr.Recognizer()
     with sr.Microphone() as source:
         print("请说话...")
@@ -199,7 +225,39 @@ def recognize_speech(timeout=10):
         print("响应内容:", response.text)
         return None
 '''
+# 关键词唤醒函数
+def keyword_wakeup():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("等待关键词唤醒...")
+        recognizer.adjust_for_ambient_noise(source)  # 调整环境噪音
+        try:
+            audio = recognizer.listen(source, timeout=10)  # 录制 5 秒音频
+        except sr.WaitTimeoutError:
+            print("未检测到语音输入。")
+            return False
 
+    # 将音频数据保存为临时文件
+    audio_file = "temp.wav"
+    with open(audio_file, "wb") as f:
+        f.write(audio.get_wav_data())
+
+    # 使用百度云语音识别 API 识别语音
+    recognized_text = recognize_speech2(timeout=10)
+    if recognized_text:
+        print(f"识别结果: {recognized_text}")
+
+        # 检测关键词
+        if "哦" in recognized_text:
+            print("检测到关键词: 哦")
+            return True
+        else:
+            print("未检测到关键词。")
+            return False
+    else:
+        print("语音识别失败。")
+        return False
+'''
 
 # 合成语音
 def speak(text, language='zh'):
@@ -296,6 +354,7 @@ def voice_interaction():
     global voice_mode
     while voice_mode:
         user_input = recognize_speech(timeout=10)  # 设置 10 秒超时
+
         if user_input is None:
             # 10 秒内未检测到语音输入，退出语音交互模式
             voice_mode = False
@@ -319,24 +378,30 @@ if __name__ == "__main__":
             # 启动语音交互模式
             voice_interaction()
         else:
-            # 文本交互模式
-            user_input = input("You: ")
-            if user_input.lower() in ["exit", "quit", "关闭语音交互"]:
-                if voice_mode:
-                    voice_mode = False
-                    speak("已关闭语音交互模式")
-                else:
-                    print("Exiting chat...")
-                    break
-
-            # 开启语音交互模式
-            if "开启语音交互" in user_input:
-                #start_voice_interaction()
-                #print("DeepSeek: 已开启语音交互模式")
-                #continue
+            # 开启语音交互模式-2
+            if keyword_wakeup():
                 voice_mode = True
                 print("DeepSeek: 已开启语音交互模式")
                 continue
+            else:
+                # 文本交互模式
+                user_input = input("You: ")
+                if user_input.lower() in ["exit", "quit", "关闭语音交互"]:
+                    if voice_mode:
+                        voice_mode = False
+                        speak("已关闭语音交互模式")
+                    else:
+                        print("Exiting chat...")
+                        break
+
+                # 开启语音交互模式-1
+                if "开启语音交互" in user_input:
+                    #start_voice_interaction()
+                    #print("DeepSeek: 已开启语音交互模式")
+                    #continue
+                    voice_mode = True
+                    print("DeepSeek: 已开启语音交互模式")
+                    continue
 
             # 处理用户输入
             response = chat_with_deepseek(user_input)
