@@ -16,7 +16,8 @@ import pyaudio
 import uuid
 from gtts import gTTS
 from pocketsphinx import LiveSpeech, get_model_path
-
+from datetime import datetime
+import pytz
 
 # 生成一个唯一的设备 ID
 #cuidid= str(uuid.uuid4())
@@ -34,7 +35,7 @@ headers_for_deepseek_api = {
 
 # 初始化语音识别和语音合成
 recognizer = sr.Recognizer()
-engine = pyttsx3.init()
+#engine = pyttsx3.init()
 
 # 初始化对话历史
 conversation_history = [
@@ -295,6 +296,52 @@ def speak(text, language='zh'):
         print(f"请求失败，状态码: {response.status_code}")
         print("响应内容:", response.text)  # 打印错误信息
 
+
+# 设置时区为北京时间
+beijing_tz = pytz.timezone('Asia/Shanghai')
+
+def get_current_time():
+    """获取当前北京时间"""
+    now = datetime.now(beijing_tz)
+    return now.strftime('%Y-%m-%d %H:%M:%S')
+
+# 输入清扫时间，目前只能输入当天的时间
+def parse_time(user_input):
+    """解析用户输入的时间，返回小时和分钟"""
+    # 正则表达式匹配不同的时间表达
+    patterns = [
+        r'(\d{1,2})点(\d{1,2})分',  # 匹配“X点Y分”
+        r'(\d{1,2})点',             # 匹配“X点”
+        r'上午(\d{1,2})点(\d{1,2})分',  # 匹配“上午X点Y分”
+        r'下午(\d{1,2})点(\d{1,2})分',  # 匹配“下午X点Y分”
+        r'晚上(\d{1,2})点(\d{1,2})分',  # 匹配“晚上X点Y分”
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, user_input)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2)) if len(match.groups()) > 1 else 0
+            # 处理12小时制时间
+            if '下午' in pattern or '晚上' in pattern:
+                if hour < 12:
+                    hour += 12
+            return hour, minute
+    return None, None
+
+def set_cleaning_time(user_input):
+    """设置清扫时间并返回结果"""
+    hour, minute = parse_time(user_input)
+    if hour is not None:
+        # 获取当前日期
+        today = datetime.now(beijing_tz).date()
+        # 设置清扫时间
+        cleaning_time = datetime(today.year, today.month, today.day, hour, minute, tzinfo=beijing_tz)
+        return cleaning_time.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        return None
+
+
 # 设置请求体
 def create_chat_prompt(user_input):
     return {
@@ -322,6 +369,20 @@ def chat_with_deepseek(user_input):
                 return f"当前{city}的天气状况是{weather['text']}，气温是{weather['temperature']}摄氏度。"
             else:
                 return "请换一个中国城市，例如：今天北京的天气怎么样？"
+        # 检查用户输入是否包含“时间”关键词
+        if "时间" in user_input or "几点" in user_input:
+            if "清扫时间" in user_input:
+                cleaning_time = set_cleaning_time(user_input)
+                current_time = get_current_time()
+                if cleaning_time:
+                    return f"当前北京时间: {current_time}, 已设置清扫时间为: {cleaning_time}"
+                else:
+                    return "未识别到有效的时间信息，请重新设置。"
+            else:
+                current_time = get_current_time()
+                return f"当前北京时间: {current_time}"
+
+
          # 将用户输入添加到对话历史
         conversation_history.append({"role": "user", "content": user_input})
         # 创建请求体
