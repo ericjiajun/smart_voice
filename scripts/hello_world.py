@@ -434,36 +434,43 @@ def voice_interaction():
 
 # 主程序
 if __name__ == "__main__":
+    if keyword_wakeup():
+        voice_mode = True
+        print("DeepSeek: 已开启语音交互模式")
+
     while True:
         if voice_mode:
             # 启动语音交互模式
             voice_interaction()
         else:
+            '''
             # 开启语音交互模式-2
             if keyword_wakeup():
                 voice_mode = True
                 print("DeepSeek: 已开启语音交互模式")
                 continue
+
             else:
-                # 文本交互模式
-                user_input = input("You: ")
-                if user_input.lower() in ["exit", "quit", "关闭语音交互"]:
-                    if voice_mode:
-                        voice_mode = False
-                        speak("已关闭语音交互模式")
-                    else:
-                        print("Exiting chat...")
-                        break
+                '''
+        # 文本交互模式
+        user_input = input("You: ")
+        if user_input.lower() in ["exit", "quit", "关闭语音交互"]:
+            if voice_mode:
+                voice_mode = False
+                speak("已关闭语音交互模式")
+            else:
+                print("Exiting chat...")
+                break
 
-                # 开启语音交互模式-1
-                if "开启语音交互" in user_input:
-                    #start_voice_interaction()
-                    #print("DeepSeek: 已开启语音交互模式")
-                    #continue
-                    voice_mode = True
-                    print("DeepSeek: 已开启语音交互模式")
-                    continue
+        # 开启语音交互模式-1
+        if "开启语音交互" in user_input:
+            #start_voice_interaction()
+            #print("DeepSeek: 已开启语音交互模式")
+            #continue
+            voice_mode = True
+            print("DeepSeek: 已开启语音交互模式")
+            continue
 
-            # 处理用户输入
-            response = chat_with_deepseek(user_input)
-            print(f"DeepSeek: {response}")
+        # 处理用户输入
+        response = chat_with_deepseek(user_input)
+        print(f"DeepSeek: {response}")
